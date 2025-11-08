@@ -1,13 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import {
-  GoogleAuthProvider,
-  User,
-  onAuthStateChanged,
-  signInWithPopup,
-  signOut,
-} from 'firebase/auth';
+import { useEffect, useState } from 'react';
 import {
   addDoc,
   collection,
@@ -18,7 +11,8 @@ import {
   query,
   updateDoc,
 } from 'firebase/firestore';
-import { auth, db } from '../../lib/firebase';
+import { useAuth } from '../../context/AuthContext';
+import { db } from '../../lib/firebase';
 
 type MallEvent = {
   id?: string;
@@ -38,10 +32,15 @@ function formatDate(date: string | undefined) {
 }
 
 export default function AdminDashboardPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const {
+    user,
+    isAdmin,
+    loading: authLoading,
+    signInWithGoogle,
+    signOutUser,
+  } = useAuth();
   const [events, setEvents] = useState<MallEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [eventsLoading, setEventsLoading] = useState(true);
   const [form, setForm] = useState<MallEvent>({
     mall: '',
     title: '',
@@ -52,56 +51,40 @@ export default function AdminDashboardPage() {
   const [saving, setSaving] = useState<boolean>(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
-
-      if (!firebaseUser) {
-        setIsAdmin(false);
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const token = await firebaseUser.getIdTokenResult(true);
-        setIsAdmin(Boolean(token.claims.admin));
-      } catch (err) {
-        console.error('Impossible de récupérer le token utilisateur', err);
-        setIsAdmin(false);
-      } finally {
-        setLoading(false);
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
     const eventsQuery = query(
       collection(db, 'mall_events'),
       orderBy('date', 'desc')
     );
 
-    const unsubscribe = onSnapshot(eventsQuery, (snapshot) => {
-      const items: MallEvent[] = [];
-      snapshot.forEach((item) => {
-        const data = item.data() as MallEvent;
-        items.push({
-          ...data,
-          id: item.id,
+    const unsubscribe = onSnapshot(
+      eventsQuery,
+      (snapshot) => {
+        const items: MallEvent[] = [];
+        snapshot.forEach((item) => {
+          const data = item.data() as MallEvent;
+          items.push({
+            ...data,
+            id: item.id,
+          });
         });
-      });
-      setEvents(items);
-    });
+        setEvents(items);
+        setEventsLoading(false);
+      },
+      (err) => {
+        console.error('Erreur Firestore', err);
+        setError("Impossible de récupérer les événements.");
+        setEvents([]);
+        setEventsLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, []);
 
-  const provider = useMemo(() => new GoogleAuthProvider(), []);
-
   async function loginWithGoogle() {
     setError(null);
     try {
-      await signInWithPopup(auth, provider);
+      await signInWithGoogle();
     } catch (err) {
       console.error('Erreur de connexion', err);
       setError('Impossible de se connecter pour le moment.');
@@ -111,7 +94,7 @@ export default function AdminDashboardPage() {
   async function logout() {
     setError(null);
     try {
-      await signOut(auth);
+      await signOutUser();
     } catch (err) {
       console.error('Erreur lors de la déconnexion', err);
       setError('Impossible de se déconnecter pour le moment.');
@@ -173,7 +156,7 @@ export default function AdminDashboardPage() {
     }
   }
 
-  if (loading) {
+    if (authLoading) {
     return <div className="p-6">Chargement…</div>;
   }
 
@@ -205,137 +188,141 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+        {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
-      {isAdmin ? (
-        <div className="grid gap-8 md:grid-cols-2">
-          <section className="rounded border border-gray-200 p-4 shadow-sm">
-            <h2 className="mb-4 text-lg font-semibold">
-              Ajouter un événement
-            </h2>
-            <div className="flex flex-col gap-3">
-              <input
-                className="rounded border border-gray-300 px-3 py-2"
-                placeholder="Centre commercial"
-                value={form.mall}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, mall: event.target.value }))
-                }
-              />
-              <input
-                className="rounded border border-gray-300 px-3 py-2"
-                placeholder="Titre"
-                value={form.title}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, title: event.target.value }))
-                }
-              />
-              <input
-                className="rounded border border-gray-300 px-3 py-2"
-                type="date"
-                value={form.date}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, date: event.target.value }))
-                }
-              />
-              <input
-                className="rounded border border-gray-300 px-3 py-2"
-                placeholder="Type (promo, animation, etc.)"
-                value={form.type}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, type: event.target.value }))
-                }
-              />
-              <button
-                onClick={() => addEvent(form)}
-                disabled={saving}
-                className="rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {saving ? 'Ajout en cours…' : 'Ajouter'}
-              </button>
-            </div>
-          </section>
-
-          <section className="rounded border border-gray-200 p-4 shadow-sm">
-            <h2 className="mb-4 text-lg font-semibold">
-              Gestion des événements
-            </h2>
-
-            <div className="flex max-h-[400px] flex-col gap-3 overflow-y-auto pr-2">
-              {events.length === 0 && (
-                <p className="text-sm text-gray-500">
-                  Aucun événement enregistré pour le moment.
-                </p>
-              )}
-
-              {events.map((event) => (
-                <article
-                  key={event.id}
-                  className="rounded border border-gray-300 p-3"
+        {isAdmin ? (
+          <div className="grid gap-8 md:grid-cols-2">
+            <section className="rounded border border-gray-200 p-4 shadow-sm">
+              <h2 className="mb-4 text-lg font-semibold">
+                Ajouter un événement
+              </h2>
+              <div className="flex flex-col gap-3">
+                <input
+                  className="rounded border border-gray-300 px-3 py-2"
+                  placeholder="Centre commercial"
+                  value={form.mall}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, mall: event.target.value }))
+                  }
+                />
+                <input
+                  className="rounded border border-gray-300 px-3 py-2"
+                  placeholder="Titre"
+                  value={form.title}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, title: event.target.value }))
+                  }
+                />
+                <input
+                  className="rounded border border-gray-300 px-3 py-2"
+                  type="date"
+                  value={form.date}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, date: event.target.value }))
+                  }
+                />
+                <input
+                  className="rounded border border-gray-300 px-3 py-2"
+                  placeholder="Type (promo, animation, etc.)"
+                  value={form.type}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, type: event.target.value }))
+                  }
+                />
+                <button
+                  onClick={() => addEvent(form)}
+                  disabled={saving}
+                  className="rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <header className="mb-2 flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold">{event.title}</p>
-                      <p className="text-sm text-gray-600">{event.mall}</p>
-                    </div>
-                    <button
-                      onClick={() => removeEvent(event.id!)}
-                      className="rounded border border-red-500 px-2 py-1 text-red-600 hover:bg-red-50"
-                    >
-                      Supprimer
-                    </button>
-                  </header>
+                  {saving ? 'Ajout en cours…' : 'Ajouter'}
+                </button>
+              </div>
+            </section>
 
-                  <dl className="text-sm text-gray-700">
-                    <div className="flex gap-2">
-                      <dt className="font-medium">Date :</dt>
-                      <dd>{formatDate(event.date)}</dd>
-                    </div>
-                    <div className="flex gap-2">
-                      <dt className="font-medium">Type :</dt>
-                      <dd>{event.type}</dd>
-                    </div>
-                  </dl>
+            <section className="rounded border border-gray-200 p-4 shadow-sm">
+              <h2 className="mb-4 text-lg font-semibold">
+                Gestion des événements
+              </h2>
 
-                  <footer className="mt-3 flex gap-2">
-                    <button
-                      onClick={() => {
-                        const newTitle = window.prompt(
-                          'Nouveau titre',
-                          event.title
-                        );
-                        if (!newTitle) return;
-                        updateEvent(event.id!, { title: newTitle });
-                      }}
-                      className="rounded border border-blue-500 px-3 py-1 text-blue-600 hover:bg-blue-50"
+              <div className="flex max-h-[400px] flex-col gap-3 overflow-y-auto pr-2">
+                {eventsLoading ? (
+                  <p className="text-sm text-gray-500">
+                    Chargement des événements…
+                  </p>
+                ) : events.length === 0 ? (
+                  <p className="text-sm text-gray-500">
+                    Aucun événement enregistré pour le moment.
+                  </p>
+                ) : (
+                  events.map((event) => (
+                    <article
+                      key={event.id}
+                      className="rounded border border-gray-300 p-3"
                     >
-                      Renommer
-                    </button>
-                    <button
-                      onClick={() => {
-                        const newDate = window.prompt(
-                          'Nouvelle date (YYYY-MM-DD)',
-                          event.date
-                        );
-                        if (!newDate) return;
-                        updateEvent(event.id!, { date: newDate });
-                      }}
-                      className="rounded border border-indigo-500 px-3 py-1 text-indigo-600 hover:bg-indigo-50"
-                    >
-                      Modifier la date
-                    </button>
-                  </footer>
-                </article>
-              ))}
-            </div>
-          </section>
-        </div>
-      ) : (
-        <p className="rounded border border-yellow-400 bg-yellow-50 p-3 text-sm text-yellow-700">
-          Accès restreint : demande à un administrateur de t’accorder le rôle
-          admin.
-        </p>
-      )}
+                      <header className="mb-2 flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold">{event.title}</p>
+                          <p className="text-sm text-gray-600">{event.mall}</p>
+                        </div>
+                        <button
+                          onClick={() => removeEvent(event.id!)}
+                          className="rounded border border-red-500 px-2 py-1 text-red-600 hover:bg-red-50"
+                        >
+                          Supprimer
+                        </button>
+                      </header>
+
+                      <dl className="text-sm text-gray-700">
+                        <div className="flex gap-2">
+                          <dt className="font-medium">Date :</dt>
+                          <dd>{formatDate(event.date)}</dd>
+                        </div>
+                        <div className="flex gap-2">
+                          <dt className="font-medium">Type :</dt>
+                          <dd>{event.type}</dd>
+                        </div>
+                      </dl>
+
+                      <footer className="mt-3 flex gap-2">
+                        <button
+                          onClick={() => {
+                            const newTitle = window.prompt(
+                              'Nouveau titre',
+                              event.title
+                            );
+                            if (!newTitle) return;
+                            updateEvent(event.id!, { title: newTitle });
+                          }}
+                          className="rounded border border-blue-500 px-3 py-1 text-blue-600 hover:bg-blue-50"
+                        >
+                          Renommer
+                        </button>
+                        <button
+                          onClick={() => {
+                            const newDate = window.prompt(
+                              'Nouvelle date (YYYY-MM-DD)',
+                              event.date
+                            );
+                            if (!newDate) return;
+                            updateEvent(event.id!, { date: newDate });
+                          }}
+                          className="rounded border border-indigo-500 px-3 py-1 text-indigo-600 hover:bg-indigo-50"
+                        >
+                          Modifier la date
+                        </button>
+                      </footer>
+                    </article>
+                  ))
+                )}
+              </div>
+            </section>
+          </div>
+        ) : (
+          <p className="rounded border border-yellow-400 bg-yellow-50 p-3 text-sm text-yellow-700">
+            Accès restreint : demande à un administrateur de t’accorder le rôle
+            admin.
+          </p>
+        )}
 
       <section className="mt-10 rounded border border-gray-200 p-4 text-sm text-gray-600">
         <h2 className="mb-2 text-base font-semibold">Guide rapide</h2>

@@ -48,6 +48,8 @@ Create `.env.local` (already scaffolded in repo) and fill in the values:
    node scripts/setAdminClaim.js list
    ```
 
+> L’API `/api/admin-session` vérifie le claim `admin` via l’Admin SDK puis dépose un cookie HTTP-only (`mw-admin`). Ce cookie est lu par `middleware.ts` pour protéger toutes les routes `/admin`. Assure-toi donc que la variable `FIREBASE_ADMIN_SERVICE_ACCOUNT_KEY` est bien configurée sur Vercel (production et preview).
+
 ### 6. Build & deploy (Vercel)
 ```bash
 npx vercel build
@@ -60,11 +62,13 @@ Or push to GitHub and let Vercel deploy automatically.
 - CRUD events and verify Firestore updates in real time.
 - Stripe webhook: add endpoint `https://mallworld-v2-3.vercel.app/api/stripe/webhook` (test mode events).
 - Supabase connectivity: run health check against API endpoints using your service role if applicable.
+- Inspect tes cookies : un admin connecté doit avoir `mw-admin=1` (HTTP-only). Sans ce cookie, le middleware redirigera vers `/`.
 
 ### 8. Troubleshooting tips
 - **Auth claim not picked up**: user must log out/in to refresh the ID token; you can also call `getIdToken(true)` client-side.
 - **Permission denied on Firestore**: confirm the admin claim, check that rules are deployed, inspect Firestore logs.
 - **Vercel build failure**: ensure `firebase` package is not bundled server-side unnecessarily; Next.js 14 handles ESM automatically.
 - **Stripe webhook signature**: store `STRIPE_WEBHOOK_SECRET` if you implement signature verification (add to `.env` & Vercel).
+- **Redirection inattendue vers la home**: vérifie que la route `/api/admin-session` renvoie bien un statut 200 (service key valide) et que le cookie `mw-admin` est présent.
 
 All set — your admin module is ready for production 🚀
