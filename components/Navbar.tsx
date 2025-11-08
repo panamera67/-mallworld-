@@ -5,7 +5,14 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Navbar() {
-  const { user, loading, isAdmin, signInWithGoogle, signOutUser } = useAuth();
+  const {
+    user,
+    loading,
+    isAdmin,
+    roles,
+    signInWithGoogle,
+    signOutUser,
+  } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
   async function handleLogin() {
@@ -76,9 +83,17 @@ export default function Navbar() {
                     {user.email}
                   </div>
                   {isAdmin && (
-                    <p className="px-4 pb-2 text-xs font-semibold uppercase tracking-wide text-indigo-500">
+                    <div className="px-4 pb-2 text-xs uppercase tracking-wide text-indigo-500">
                       Admin
-                    </p>
+                    </div>
+                  )}
+                  {roles.length > 0 && (
+                    <div className="px-4 pb-2 text-xs text-gray-500">
+                      Rôles :{' '}
+                      <span className="font-medium text-gray-700">
+                        {roles.join(', ')}
+                      </span>
+                    </div>
                   )}
                   <button
                     onClick={handleLogout}

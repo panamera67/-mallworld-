@@ -37,19 +37,40 @@ function ensureAppInitialized() {
   }
 }
 
-async function addAdmin(uid) {
+async function addAdmin(uid, options = {}) {
   if (!uid) {
-    throw new Error('Commande invalide. Utilisation : node scripts/setAdminClaim.js add <UID>');
+    throw new Error(
+      'Commande invalide. Utilisation : node scripts/setAdminClaim.js add <UID> [--roles=role1,role2] [--permissions=perm1,perm2]'
+    );
   }
 
   ensureAppInitialized();
   const record = await admin.auth().getUser(uid);
   const claims = { ...(record.customClaims || {}), admin: true };
+
+  if (options.roles) {
+    claims.roles = options.roles;
+  }
+
+  if (options.permissions) {
+    claims.permissions = options.permissions;
+  }
+
   await admin.auth().setCustomUserClaims(uid, claims);
   await admin.auth().revokeRefreshTokens(uid);
 
-  console.log(`✅ Claim admin ajoutée pour ${uid} (${record.email || 'email inconnu'}).`);
-  console.log("ℹ️ L'utilisateur doit se reconnecter pour appliquer la mise à jour.");
+  console.log(
+    `✅ Claim admin ajoutée pour ${uid} (${record.email || 'email inconnu'}).`
+  );
+  if (options.roles) {
+    console.log(`   • Rôles assignés : ${options.roles.join(', ')}`);
+  }
+  if (options.permissions) {
+    console.log(`   • Permissions assignées : ${options.permissions.join(', ')}`);
+  }
+  console.log(
+    "ℹ️ L'utilisateur doit se reconnecter pour appliquer la mise à jour."
+  );
 }
 
 async function removeAdmin(uid) {
@@ -61,6 +82,8 @@ async function removeAdmin(uid) {
   const record = await admin.auth().getUser(uid);
   const claims = { ...(record.customClaims || {}) };
   delete claims.admin;
+  delete claims.roles;
+  delete claims.permissions;
   await admin.auth().setCustomUserClaims(uid, claims);
   await admin.auth().revokeRefreshTokens(uid);
 
@@ -78,6 +101,8 @@ async function listAdmins() {
         admins.push({
           uid: user.uid,
           email: user.email || 'email inconnu',
+          roles: user.customClaims.roles || [],
+          permissions: user.customClaims.permissions || [],
         });
       }
     });
@@ -96,16 +121,43 @@ async function listAdmins() {
 
   console.log('👑 Liste des administrateurs :');
   admins.forEach((adminUser) => {
-    console.log(`• ${adminUser.uid} (${adminUser.email})`);
+    const roles =
+      Array.isArray(adminUser.roles) && adminUser.roles.length
+        ? adminUser.roles.join(', ')
+        : '—';
+    const permissions =
+      Array.isArray(adminUser.permissions) && adminUser.permissions.length
+        ? adminUser.permissions.join(', ')
+        : '—';
+    console.log(
+      `• ${adminUser.uid} (${adminUser.email}) | rôles : ${roles} | permissions : ${permissions}`
+    );
   });
 }
 
 async function main() {
-  const [, , command, uid] = process.argv;
+  const [, , command, uid, ...rest] = process.argv;
+
+  const rolesArg = rest.find((arg) => arg.startsWith('--roles='));
+  const permissionsArg = rest.find((arg) =>
+    arg.startsWith('--permissions=')
+  );
+
+  const parseList = (arg) =>
+    arg
+      ? arg
+          .split('=')[1]
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean)
+      : undefined;
+
+  const roles = parseList(rolesArg);
+  const permissions = parseList(permissionsArg);
 
   switch (command) {
     case 'add':
-      await addAdmin(uid);
+      await addAdmin(uid, { roles, permissions });
       break;
     case 'remove':
       await removeAdmin(uid);
