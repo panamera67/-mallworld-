@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  query,
+  where,
+} from "firebase/firestore";
 import { db } from "../lib/firebase";
 
 export default function useMallEvents(mallName) {
@@ -13,45 +18,33 @@ export default function useMallEvents(mallName) {
       return;
     }
 
-    let isSubscribed = true;
+    setLoading(true);
+    setError(null);
 
-    async function fetchEvents() {
-      setLoading(true);
-      setError(null);
+    const eventsQuery = query(
+      collection(db, "mall_events"),
+      where("mall", "==", mallName)
+    );
 
-      try {
-        const eventsQuery = query(
-          collection(db, "mall_events"),
-          where("mall", "==", mallName)
-        );
-        const snapshot = await getDocs(eventsQuery);
-
-        if (!isSubscribed) return;
-
+    const unsubscribe = onSnapshot(
+      eventsQuery,
+      (snapshot) => {
         const data = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
-
         setEvents(data);
-      } catch (err) {
-        if (isSubscribed) {
-          console.error("Erreur lors de la récupération des événements:", err);
-          setError(err);
-          setEvents([]);
-        }
-      } finally {
-        if (isSubscribed) {
-          setLoading(false);
-        }
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Erreur lors de la récupération des événements:", err);
+        setError(err);
+        setEvents([]);
+        setLoading(false);
       }
-    }
+    );
 
-    fetchEvents();
-
-    return () => {
-      isSubscribed = false;
-    };
+    return () => unsubscribe();
   }, [mallName]);
 
   return { events, loading, error };
