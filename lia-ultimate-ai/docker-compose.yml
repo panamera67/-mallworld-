@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  lia-core:
+    build: .
+    container_name: lia-core
+    ports:
+      - "8000:8000"
+    environment:
+      - TWITTER_BEARER_TOKEN=${TWITTER_BEARER_TOKEN}
+      - MONGODB_URI=mongodb://mongodb:27017/lia_ai
+    depends_on:
+      - mongodb
+    volumes:
+      - ./data:/app/data
+    command: python main.py
+
+  mongodb:
+    image: mongo:6.0
+    container_name: lia-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=lia_ai
+
+volumes:
+  mongodb_data:
