@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Public read access for mall events (adjust if you need authenticated reads)
+    match /mall_events/{eventId} {
+      allow read: if true;
+
+      // Only authenticated users with the custom admin claim can write
+      allow create, update, delete:
+        if request.auth != null
+        && request.auth.token.admin == true;
+
+      // Optional: basic validation helpers
+      function isValidEvent() {
+        return request.resource.data.mall is string
+          && request.resource.data.title is string
+          && request.resource.data.date is string
+          && request.resource.data.type is string;
+      }
+    }
+
+    // Example of user document protection
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
