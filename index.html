@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="fr" class="no-js">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spectra FX - Audit & Optimisation FX Professionnel | 0.1% à 0.5% d'économie</title>
+    
+    <!-- Critical CSS Inlined -->
+    <style>
+        :root {
+            --primary-500: #f0b90b;
+            --primary-600: #d9a507;
+            --primary-700: #c29106;
+            --gray-900: #0b0e11;
+            --gray-800: #161b22;
+            --gray-700: #2a2e35;
+            --gray-600: #4a5568;
+            --gray-300: #e2e8f0;
+            --gray-100: #f7fafc;
+            --white: #ffffff;
+            --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--gray-900);
+            color: var(--white);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Skip link for accessibility */
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 6px;
+            background: var(--primary-500);
+            color: var(--gray-900);
+            padding: 8px 12px;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: 600;
+            z-index: 1000;
+            transition: top 0.2s;
+        }
+
+        .skip-link:focus {
+            top: 6px;
+        }
+
+        /* Focus management */
+        :focus-visible {
+            outline: 2px solid var(--primary-500);
+            outline-offset: 2px;
+        }
+
+        /* Reduced motion support */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+
+        /* Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.875rem;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-500);
+            color: var(--gray-900);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-600);
+            transform: translateY(-1px);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background-color: transparent;
+            color: var(--white);
+            border: 1px solid var(--gray-600);
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--gray-800);
+            border-color: var(--gray-300);
+        }
+
+        .btn-lg {
+            padding: 1rem 2rem;
+            font-size: 1rem;
+        }
+
+        /* Header */
+        header {
+            background-color: var(--gray-800);
+            border-bottom: 1px solid var(--gray-700);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            backdrop-filter: blur(8px);
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 0;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--primary-500);
+        }
+
+        nav ul {
+            display: flex;
+            list-style: none;
+            gap: 2rem;
+        }
+
+        nav a {
+            color: var(--gray-300);
+            text-decoration: none;
+            transition: color 0.2s;
+            font-weight: 500;
+        }
+
+        nav a:hover {
+            color: var(--white);
+        }
+
+        .auth-buttons {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        /* Hero Section */
+        .hero {
+            background: linear-gradient(135deg, var(--gray-800) 0%, var(--gray-900) 100%);
+            padding: 6rem 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 4rem;
+            align-items: center;
+        }
+
+        @media (min-width: 1024px) {
+            .hero-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .hero-content h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+        }
+
+        .hero-highlight {
+            color: var(--primary-500);
+        }
+
+        .hero-content p {
+            font-size: 1.25rem;
+            color: var(--gray-300);
+            margin-bottom: 2rem;
+            max-width: 500px;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        /* ROI Calculator */
+        .calculator {
+            background-color: var(--gray-800);
+            border: 1px solid var(--gray-700);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .calculator h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .calculator-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-group label {
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+
+        .form-control {
+            padding: 0.75rem 1rem;
+            background-color: var(--gray-700);
+            border: 1px solid var(--gray-600);
+            border-radius: 8px;
+            color: var(--white);
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-500);
+        }
+
+        .form-help {
+            font-size: 0.75rem;
+            color: var(--gray-300);
+        }
+
+        .results {
+            background-color: var(--gray-700);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .results.hidden {
+            display: none;
+        }
+
+        .results h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--gray-600);
+        }
+
+        .result-item span {
+            display: block;
+            font-size: 0.875rem;
+            color: var(--gray-300);
+        }
+
+        .result-value {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--primary-500);
+        }
+
+        .roi-badge {
+            background-color: #10b981;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        /* Features Section */
+        .features {
+            padding: 6rem 0;
+            background-color: var(--gray-900);
+        }
+
+        .features-header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .features-header h2 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .features-header p {
+            font-size: 1.125rem;
+            color: var(--gray-300);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+
+        @media (min-width: 768px) {
+            .features-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .features-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        .feature-card {
+            background-color: var(--gray-800);
+            border: 1px solid var(--gray-700);
+            border-radius: 12px;
+            padding: 2rem;
+            transition: all 0.3s;
+        }
+
+        .feature-card:hover {
+            border-color: var(--primary-500);
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .feature-icon {
+            width: 3rem;
+            height: 3rem;
+            background-color: var(--primary-500);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+            font-size: 1.25rem;
+        }
+
+        .feature-card h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
+
+        .feature-card p {
+            color: var(--gray-300);
+            line-height: 1.6;
+        }
+
+        /* Footer */
+        footer {
+            background-color: var(--gray-800);
+            border-top: 1px solid var(--gray-700);
+            padding: 3rem 0;
+            text-align: center;
+        }
+
+        footer p {
+            color: var(--gray-300);
+            margin-bottom: 0.5rem;
+        }
+
+        .compliance-badge {
+            font-size: 0.875rem;
+            color: var(--gray-400);
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.6s ease-out;
+        }
+    </style>
+</head>
+
+<body>
+    <a href="#main-content" class="skip-link">Aller au contenu principal</a>
+
+    <header role="banner">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <span aria-hidden="true">⚡</span>
+                    Spectra FX
+                </div>
+                
+                <nav aria-label="Navigation principale">
+                    <ul>
+                        <li><a href="#features">Fonctionnalités</a></li>
+                        <li><a href="#calculator">Calculateur ROI</a></li>
+                        <li><a href="#contact">Contact</a></li>
+                    </ul>
+                </nav>
+                
+                <div class="auth-buttons">
+                    <button type="button" class="btn btn-secondary">Connexion</button>
+                    <button type="button" class="btn btn-primary">Essai gratuit</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main id="main-content" role="main">
+        <!-- Hero Section avec Calculateur ROI -->
+        <section class="hero" aria-labelledby="hero-heading">
+            <div class="container">
+                <div class="hero-grid">
+                    <div class="hero-content">
+                        <h1 id="hero-heading">
+                            Optimisez vos spreads FX de
+                            <span class="hero-highlight">0.1% à 0.5%</span>
+                        </h1>
+                        <p>
+                            Plateforme SaaS d'audit et d'optimisation FX pour fintechs et institutions financières. 
+                            Réduisez vos coûts de trading dès aujourd'hui.
+                        </p>
+                        <div class="hero-actions">
+                            <button type="button" class="btn btn-primary btn-lg">Essai gratuit 30 jours</button>
+                            <button type="button" class="btn btn-secondary btn-lg">Voir la démo</button>
+                        </div>
+                    </div>
+                    
+                    <div class="calculator">
+                        <h2>Calculez votre économie</h2>
+                        <div class="calculator-form">
+                            <div class="form-group">
+                                <label for="volume">Volume FX mensuel (€)</label>
+                                <input type="number" id="volume" class="form-control" value="10000000" min="0" step="100000">
+                                <div class="form-help">Volume total de vos opérations FX mensuelles</div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="spread">Spread actuel (pips)</label>
+                                <input type="number" id="spread" class="form-control" value="2.5" min="0.1" step="0.1">
+                                <div class="form-help">Votre spread moyen actuel en pips</div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="optimization">Optimisation cible</label>
+                                <select id="optimization" class="form-control">
+                                    <option value="0.001">0.1% (Conservative)</option>
+                                    <option value="0.003" selected>0.3% (Standard)</option>
+                                    <option value="0.005">0.5% (Aggressif)</option>
+                                </select>
+                                <div class="form-help">Niveau d'optimisation basé sur votre profil de risque</div>
+                            </div>
+                            
+                            <button type="button" id="calculate-btn" class="btn btn-primary">
+                                Calculer mon économie
+                            </button>
+                            
+                            <div id="results" class="results hidden" role="status" aria-live="polite">
+                                <h3>Économie estimée</h3>
+                                <div class="results-grid">
+                                    <div class="result-item">
+                                        <span>Mensuelle</span>
+                                        <div id="monthly-saving" class="result-value">-</div>
+                                    </div>
+                                    <div class="result-item">
+                                        <span>Annuelle</span>
+                                        <div id="annual-saving" class="result-value">-</div>
+                                    </div>
+                                </div>
+                                <div class="result-item">
+                                    <span>ROI Spectra</span>
+                                    <div id="roi-multiple" class="roi-badge">-</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section id="features" class="features" aria-labelledby="features-heading">
+            <div class="container">
+                <div class="features-header">
+                    <h2 id="features-heading">Pourquoi choisir Spectra FX ?</h2>
+                    <p>Une plateforme complète d'audit et d'optimisation conçue pour les professionnels</p>
+                </div>
+                
+                <div class="features-grid">
+                    <article class="feature-card">
+                        <div class="feature-icon" aria-hidden="true">📊</div>
+                        <h3>Audit Automatique</h3>
+                        <p>
+                            Analyse complète de vos performances FX avec détection automatique 
+                            des opportunités d'optimisation. Rapports détaillés et actionnables.
+                        </p>
+                    </article>
+                    
+                    <article class="feature-card">
+                        <div class="feature-icon" aria-hidden="true">🚨</div>
+                        <h3>Alertes Temps Réel</h3>
+                        <p>
+                            Détection proactive des anomalies et alertes en temps réel sur vos 
+                            opérations de change. Ne manquez plus aucune opportunité.
+                        </p>
+                    </article>
+                    
+                    <article class="feature-card">
+                        <div class="feature-icon" aria-hidden="true">🔒</div>
+                        <h3>Sécurité Maximale</h3>
+                        <p>
+                            Infrastructure multi-tenant avec chiffrement de bout en bout, 
+                            conformité RGPD et audits de sécurité réguliers.
+                        </p>
+                    </article>
+                    
+                    <article class="feature-card">
+                        <div class="feature-icon" aria-hidden="true">⚡</div>
+                        <h3>Performance Optimisée</h3>
+                        <p>
+                            Algorithmes propriétaires d'optimisation des spreads et de routing 
+                            intelligent pour maximiser vos économies.
+                        </p>
+                    </article>
+                    
+                    <article class="feature-card">
+                        <div class="feature-icon" aria-hidden="true">🌍</div>
+                        <h3>Couverture Globale</h3>
+                        <p>
+                            Support de toutes les paires majeures et exotiques avec accès 
+                            aux meilleures sources de liquidité mondiale.
+                        </p>
+                    </article>
+                    
+                    <article class="feature-card">
+                        <div class="feature-icon" aria-hidden="true">💼</div>
+                        <h3>Support Enterprise</h3>
+                        <p>
+                            Équipe dédiée, SLA 99.9% et support 24/7 pour les institutions 
+                            financières et les volumes élevés.
+                        </p>
+                    </article>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer role="contentinfo">
+        <div class="container">
+            <p>&copy; 2024 Spectra FX Technologies SAS. Tous droits réservés.</p>
+            <p class="compliance-badge">Conforme RGPD - SOC 2 Type II - ISO 27001</p>
+        </div>
+    </footer>
+
+    <!-- JavaScript Fonctionnel -->
+    <script>
+        class ROICalculator {
+            constructor() {
+                this.elements = {};
+                this.debounceTimer = null;
+            }
+
+            init() {
+                this.cacheElements();
+                this.bindEvents();
+                this.calculate(); // Calcul initial
+            }
+
+            cacheElements() {
+                this.elements = {
+                    volume: document.getElementById('volume'),
+                    spread: document.getElementById('spread'),
+                    optimization: document.getElementById('optimization'),
+                    calculateBtn: document.getElementById('calculate-btn'),
+                    results: document.getElementById('results'),
+                    monthlySaving: document.getElementById('monthly-saving'),
+                    annualSaving: document.getElementById('annual-saving'),
+                    roiMultiple: document.getElementById('roi-multiple')
+                };
+            }
+
+            bindEvents() {
+                this.elements.calculateBtn.addEventListener('click', () => this.calculate());
+                
+                // Recalcul automatique avec debounce
+                ['volume', 'spread', 'optimization'].forEach(id => {
+                    this.elements[id].addEventListener('input', () => {
+                        clearTimeout(this.debounceTimer);
+                        this.debounceTimer = setTimeout(() => this.calculate(), 300);
+                    });
+                });
+
+                // Accessibilité clavier
+                ['volume', 'spread', 'optimization'].forEach(id => {
+                    this.elements[id].addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') {
+                            this.calculate();
+                        }
+                    });
+                });
+            }
+
+            calculate() {
+                try {
+                    const volume = parseFloat(this.elements.volume.value) || 0;
+                    const spread = parseFloat(this.elements.spread.value) || 0;
+                    const optimization = parseFloat(this.elements.optimization.value) || 0;
+
+                    // Validation
+                    if (!this.validateInputs(volume, spread, optimization)) {
+                        this.showError('Veuillez vérifier vos saisies');
+                        return;
+                    }
+
+                    // Calculs
+                    const spreadReduction = spread * optimization;
+                    const monthlySaving = volume * spreadReduction;
+                    const annualSaving = monthlySaving * 12;
+                    const roiMultiple = this.calculateROI(annualSaving);
+
+                    // Mise à jour UI
+                    this.updateResults(monthlySaving, annualSaving, roiMultiple);
+                    this.trackCalculation(volume, spread, optimization, annualSaving);
+
+                } catch (error) {
+                    console.error('Erreur calcul ROI:', error);
+                    this.showError('Erreur de calcul');
+                }
+            }
+
+            validateInputs(volume, spread, optimization) {
+                if (volume <= 0) {
+                    this.showError('Le volume doit être positif');
+                    return false;
+                }
+                if (spread <= 0) {
+                    this.showError('Le spread doit être positif');
+                    return false;
+                }
+                if (optimization <= 0) {
+                    this.showError("Le taux d'optimisation doit être positif");
+                    return false;
+                }
+                return true;
+            }
+
+            calculateROI(annualSaving) {
+                const annualCost = 299 * 12; // Coût Standard
+                return annualSaving / annualCost;
+            }
+
+            updateResults(monthly, annual, roi) {
+                // Formatage des valeurs
+                this.elements.monthlySaving.textContent = this.formatCurrency(monthly);
+                this.elements.annualSaving.textContent = this.formatCurrency(annual);
+                this.elements.roiMultiple.textContent = `${roi.toFixed(1)}x`;
+
+                // Affichage des résultats avec animation
+                this.elements.results.classList.remove('hidden');
+                this.elements.results.classList.add('fade-in');
+
+                // Accessibilité : annonce les résultats
+                const announcement = `Économie estimée : ${this.formatCurrency(annual)} par an, retour sur investissement ${roi.toFixed(1)} fois`;
+                this.announceToScreenReader(announcement);
+            }
+
+            formatCurrency(amount) {
+                return new Intl.NumberFormat('fr-FR', {
+                    style: 'currency',
+                    currency: 'EUR',
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0
+                }).format(amount);
+            }
+
+            showError(message) {
+                // En production, on utiliserait un système de notification
+                console.error('Erreur ROI Calculator:', message);
+                alert(message); // Fallback simple
+            }
+
+            trackCalculation(volume, spread, optimization, annualSaving) {
+                // Analytics basique
+                console.log('ROI Calculation:', {
+                    volume,
+                    spread,
+                    optimization,
+                    annualSaving: Math.round(annualSaving)
+                });
+            }
+
+            announceToScreenReader(message) {
+                // Création d'un élément pour l'annonce aux lecteurs d'écran
+                const announcement = document.createElement('div');
+                announcement.setAttribute('aria-live', 'polite');
+                announcement.setAttribute('aria-atomic', 'true');
+                announcement.className = 'sr-only';
+                announcement.textContent = message;
+                
+                document.body.appendChild(announcement);
+                setTimeout(() => {
+                    document.body.removeChild(announcement);
+                }, 1000);
+            }
+        }
+
+        // Initialisation au chargement
+        document.addEventListener('DOMContentLoaded', () => {
+            // Active le JS
+            document.documentElement.classList.remove('no-js');
+            
+            // Initialise le calculateur
+            const calculator = new ROICalculator();
+            calculator.init();
+            
+            // Smooth scrolling pour les ancres
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                });
+            });
+        });
+
+        // Styles pour les lecteurs d'écran uniquement
+        const screenReaderStyles = document.createElement('style');
+        screenReaderStyles.textContent = `
+            .sr-only {
+                position: absolute;
+                width: 1px;
+                height: 1px;
+                padding: 0;
+                margin: -1px;
+                overflow: hidden;
+                clip: rect(0, 0, 0, 0);
+                white-space: nowrap;
+                border: 0;
+            }
+        `;
+        document.head.appendChild(screenReaderStyles);
+    </script>
+</body>
+</html>

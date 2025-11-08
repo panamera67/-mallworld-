@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spectra-fx
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spectra-fx-backend-config
+  namespace: spectra-fx
+data:
+  PORT: "8080"
+  ROI_SUBSCRIPTION_COST: "3588"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spectra-fx-backend
+  namespace: spectra-fx
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: spectra-fx-backend
+  template:
+    metadata:
+      labels:
+        app: spectra-fx-backend
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/example/spectra-fx-backend:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: spectra-fx-backend-config
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spectra-fx-backend
+  namespace: spectra-fx
+spec:
+  selector:
+    app: spectra-fx-backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
