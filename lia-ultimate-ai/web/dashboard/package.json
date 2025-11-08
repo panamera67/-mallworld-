@@ -1,0 +1,8 @@
+{
+  "name": "lia-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "echo \"Dashboard placeholder - replace with React app\" && tail -f /dev/null"
+  }
+}

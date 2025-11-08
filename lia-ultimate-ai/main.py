@@ -1,124 +1,128 @@
 #!/usr/bin/env python3
 """
-LIA ULTIMATE AI - Système Central
-Orchestrateur principal de l'IA évolutive
+LIA Ultimate AI Enterprise - Point d'entrée principal.
 """
 
-import asyncio
 import logging
-import signal
+import os
 import sys
-from datetime import datetime
+from contextlib import asynccontextmanager
+from pathlib import Path
 
-from core.twitter_connector import TwitterAPIConnector, TwitterConfig
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+
+from core.twitter_connector import TwitterAPIConnector
 from storage.mongodb_manager import MongoDBManager
+from web.api_routes import router as api_router
+from config.security import security  # noqa: F401  # Force initialisation sécurité
 
 
-class LIAOrchestrator:
+class CorrelationIdFilter(logging.Filter):
+    """Ajoute un identifiant de corrélation par défaut au contexte de log."""
+
+    def filter(self, record: logging.LogRecord) -> bool:  # type: ignore[override]
+        if not hasattr(record, "correlation_id"):
+            record.correlation_id = "system"
+        return True
+
+
+class LIAEnterpriseOrchestrator:
     def __init__(self):
-        self.setup_logging()
-        self.running = True
         self.components = {}
+        self._ensure_directories()
+        self._setup_logging()
+        self.app = self._create_fastapi_app()
 
-    def setup_logging(self):
-        """Configuration du système de logging"""
+    def _ensure_directories(self):
+        Path("logs").mkdir(parents=True, exist_ok=True)
+        Path("data").mkdir(parents=True, exist_ok=True)
+
+    def _setup_logging(self):
+        """Configuration du logging enterprise avec corrélation."""
         logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            level=os.getenv("LOG_LEVEL", "INFO"),
+            format="%(asctime)s - %(name)s - %(levelname)s - [%(correlation_id)s] - %(message)s",
             handlers=[
-                logging.FileHandler("data/logs/lia_system.log"),
+                logging.FileHandler("logs/lia_enterprise.log"),
                 logging.StreamHandler(sys.stdout),
             ],
         )
-        self.logger = logging.getLogger("LIA-Core")
+        for handler in logging.getLogger().handlers:
+            handler.addFilter(CorrelationIdFilter())
+        self.logger = logging.getLogger("LIA-Enterprise")
 
-    async def initialize(self):
-        """Initialisation de tous les composants"""
+    def _create_fastapi_app(self) -> FastAPI:
+        """Initialise l'application FastAPI avec cycle de vie."""
+
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            await self.initialize_components()
+            yield
+            await self.shutdown_components()
+
+        app = FastAPI(
+            title="LIA Ultimate AI Enterprise",
+            description="Intelligence Artificielle Évolutive de Niveau Entreprise",
+            version="1.0.0",
+            lifespan=lifespan,
+        )
+
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
+        @app.get("/health")
+        async def root_health():
+            return {"status": "healthy", "version": "1.0.0"}
+
+        app.include_router(api_router, prefix="/api/v1")
+        return app
+
+    async def initialize_components(self):
+        """Initialisation des dépendances critiques."""
+        self.logger.info("🚀 Initialisation LIA Enterprise Edition...")
         try:
-            self.logger.info("🧠 Initialisation de LIA Ultimate AI...")
+            mongo_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017/lia_ai")
+            self.components["database"] = MongoDBManager(connection_string=mongo_uri)
 
-            # Configuration Twitter
-            twitter_config = TwitterConfig(
-                bearer_token="your_twitter_bearer_token",
-                consumer_key="your_consumer_key",
-                consumer_secret="your_consumer_secret",
-                access_token="your_access_token",
-                access_token_secret="your_access_token_secret",
-            )
+            self.components["twitter"] = TwitterAPIConnector.from_env()
 
-            self.components["twitter"] = TwitterAPIConnector(twitter_config)
-
-            # Base de données
-            self.components["database"] = MongoDBManager(
-                "mongodb://localhost:27017/lia_ai"
-            )
-
-            # Test des connexions
+            db_healthy = await self.components["database"].is_healthy()
             twitter_ok = await self.components["twitter"].initialize()
-            db_ok = await self.components["database"].is_healthy()
 
-            if twitter_ok and db_ok:
-                self.logger.info("✅ Tous les composants initialisés avec succès")
-                return True
-            else:
-                self.logger.error("❌ Échec de l'initialisation des composants")
-                return False
+            if not db_healthy:
+                raise RuntimeError("Base de données MongoDB indisponible")
+            if not twitter_ok:
+                self.logger.warning("Twitter API non initialisée complètement")
 
-        except Exception as e:
-            self.logger.error(f"❌ Erreur critique lors de l'initialisation: {e}")
-            return False
+            self.logger.info("✅ LIA Enterprise initialisé avec succès")
+        except Exception as exc:
+            self.logger.error("❌ Erreur initialisation LIA Enterprise: %s", exc)
+            raise
 
-    async def start_data_collection(self):
-        """Démarrage de la collecte de données"""
-        self.logger.info("📥 Démarrage de la collecte de données...")
-
-        try:
-            # Démarrer le stream Twitter
-            await self.components["twitter"].start_stream()
-
-        except Exception as e:
-            self.logger.error(f"❌ Erreur lors du démarrage de la collecte: {e}")
-
-    async def shutdown(self):
-        """Arrêt propre du système"""
-        self.logger.info("🛑 Arrêt de LIA Ultimate AI...")
-        self.running = False
-
-        # Fermeture des connexions
-        for name, component in self.components.items():
+    async def shutdown_components(self):
+        """Arrêt propre des composants."""
+        self.logger.info("🛑 Arrêt de LIA Enterprise...")
+        for component in self.components.values():
             if hasattr(component, "close"):
                 await component.close()
-
         self.logger.info("✅ Arrêt terminé")
 
 
-async def main():
-    """Fonction principale"""
-    global lia
-    lia = LIAOrchestrator()
-
-    def signal_handler(signum, frame):
-        """Gestion des signaux d'arrêt"""
-        asyncio.create_task(lia.shutdown())
-
-    # Configuration des gestionnaires de signal
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-
-    # Initialisation
-    if await lia.initialize():
-        # Démarrage des services
-        await lia.start_data_collection()
-
-        # Boucle principale
-        while lia.running:
-            await asyncio.sleep(1)
-
-        await lia.shutdown()
-    else:
-        lia.logger.error("❌ Impossible de démarrer le système")
-        sys.exit(1)
-
+lia_system = LIAEnterpriseOrchestrator()
+app = lia_system.app
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=os.getenv("ENVIRONMENT", "development") == "development",
+        log_level=os.getenv("LOG_LEVEL", "info").lower(),
+    )

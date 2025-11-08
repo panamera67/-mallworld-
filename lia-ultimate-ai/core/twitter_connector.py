@@ -1,9 +1,10 @@
 import asyncio
 import json
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict
+from typing import Dict, Optional
 
 import tweepy
 
@@ -17,18 +18,45 @@ class TwitterConfig:
     access_token_secret: str
     max_requests_per_15min: int = 300
 
+    @classmethod
+    def from_env(cls) -> "TwitterConfig":
+        """Construit la configuration à partir des variables d'environnement."""
+        required = {
+            "TWITTER_BEARER_TOKEN": os.getenv("TWITTER_BEARER_TOKEN"),
+            "TWITTER_CONSUMER_KEY": os.getenv("TWITTER_CONSUMER_KEY"),
+            "TWITTER_CONSUMER_SECRET": os.getenv("TWITTER_CONSUMER_SECRET"),
+            "TWITTER_ACCESS_TOKEN": os.getenv("TWITTER_ACCESS_TOKEN"),
+            "TWITTER_ACCESS_TOKEN_SECRET": os.getenv("TWITTER_ACCESS_TOKEN_SECRET"),
+        }
+        missing = [name for name, value in required.items() if not value]
+        if missing:
+            raise EnvironmentError(
+                f"Variables d'environnement Twitter manquantes: {', '.join(missing)}"
+            )
+        return cls(
+            bearer_token=required["TWITTER_BEARER_TOKEN"],
+            consumer_key=required["TWITTER_CONSUMER_KEY"],
+            consumer_secret=required["TWITTER_CONSUMER_SECRET"],
+            access_token=required["TWITTER_ACCESS_TOKEN"],
+            access_token_secret=required["TWITTER_ACCESS_TOKEN_SECRET"],
+        )
+
 
 class TwitterAPIConnector:
-    def __init__(self, config: TwitterConfig):
-        self.config = config
-        self.client = None
-        self.stream = None
+    def __init__(self, config: Optional[TwitterConfig] = None):
+        self.config = config or TwitterConfig.from_env()
+        self.client: Optional[tweepy.Client] = None
+        self.stream: Optional[tweepy.StreamingClient] = None
         self.logger = logging.getLogger("Twitter-Connector")
         self.tweets_collected = 0
-        self.initialize_client()
+        self._initialize_client()
 
-    def initialize_client(self):
-        """Initialisation du client Twitter"""
+    @classmethod
+    def from_env(cls) -> "TwitterAPIConnector":
+        return cls(TwitterConfig.from_env())
+
+    def _initialize_client(self):
+        """Initialisation du client Twitter."""
         try:
             self.client = tweepy.Client(
                 bearer_token=self.config.bearer_token,
@@ -39,34 +67,41 @@ class TwitterAPIConnector:
                 wait_on_rate_limit=True,
             )
             self.logger.info("✅ Client Twitter initialisé")
-        except Exception as e:
-            self.logger.error(f"❌ Erreur initialisation client Twitter: {e}")
+        except Exception as exc:
+            self.logger.error("❌ Erreur initialisation client Twitter: %s", exc)
+            self.client = None
 
-    async def initialize(self):
-        """Test de connexion à l'API Twitter"""
+    async def initialize(self) -> bool:
+        """Test de connexion à l'API Twitter."""
+        if not self.client:
+            self.logger.error("Client Twitter non initialisé")
+            return False
         try:
-            if self.client:
-                me = self.client.get_me()
-                self.logger.info(f"✅ Connecté à Twitter: @{me.data.username}")
+            me = self.client.get_me()
+            if me and me.data:
+                self.logger.info("✅ Connecté à Twitter: @%s", me.data.username)
                 return True
-        except Exception as e:
-            self.logger.error(f"❌ Erreur connexion Twitter: {e}")
+        except Exception as exc:
+            self.logger.error("❌ Erreur connexion Twitter: %s", exc)
         return False
 
     async def start_stream(self):
-        """Démarrage du stream temps réel"""
+        """Démarrage du stream temps réel."""
+        if not self.client:
+            raise RuntimeError("Client Twitter non initialisé")
+
         self.logger.info("🔌 Démarrage du stream Twitter...")
 
         class TweetStream(tweepy.StreamingClient):
             def __init__(self, bearer_token, processor):
-                super().__init__(bearer_token)
+                super().__init__(bearer_token, wait_on_rate_limit=True)
                 self.processor = processor
 
             def on_tweet(self, tweet):
                 asyncio.create_task(self.processor.process_tweet(tweet))
 
             def on_errors(self, errors):
-                self.processor.logger.error(f"Erreurs stream: {errors}")
+                self.processor.logger.error("Erreurs stream: %s", errors)
 
         try:
             self.stream = TweetStream(self.config.bearer_token, self)
@@ -96,46 +131,49 @@ class TwitterAPIConnector:
                 user_fields=["username", "name"],
             )
 
-        except Exception as e:
-            self.logger.error(f"❌ Erreur démarrage stream: {e}")
+        except Exception as exc:
+            self.logger.error("❌ Erreur démarrage stream: %s", exc)
 
     async def process_tweet(self, tweet):
-        """Traitement d'un tweet reçu"""
+        """Traitement d'un tweet reçu."""
         try:
             processed_tweet = {
                 "tweet_id": str(tweet.id),
                 "text": tweet.text,
                 "created_at": tweet.created_at.isoformat()
-                if tweet.created_at
+                if getattr(tweet, "created_at", None)
                 else None,
-                "author_id": tweet.author_id,
+                "author_id": getattr(tweet, "author_id", None),
                 "metrics": {
                     "retweets": tweet.public_metrics.get("retweet_count", 0),
                     "likes": tweet.public_metrics.get("like_count", 0),
                     "replies": tweet.public_metrics.get("reply_count", 0),
-                },
+                }
+                if getattr(tweet, "public_metrics", None)
+                else {},
                 "collected_at": datetime.utcnow().isoformat(),
                 "platform": "twitter",
             }
 
             self.tweets_collected += 1
-            self.logger.info(f"📥 Tweet #{self.tweets_collected}: {tweet.text[:50]}...")
+            self.logger.info("📥 Tweet #%s reçu", self.tweets_collected)
 
             await self._save_tweet_local(processed_tweet)
 
-        except Exception as e:
-            self.logger.error(f"❌ Erreur traitement tweet: {e}")
+        except Exception as exc:
+            self.logger.error("❌ Erreur traitement tweet: %s", exc)
 
     async def _save_tweet_local(self, tweet_data: Dict):
-        """Sauvegarde locale des tweets (temporaire)"""
+        """Sauvegarde locale des tweets (temporaire)."""
         try:
-            with open("data/tweets_collected.jsonl", "a", encoding="utf-8") as f:
-                f.write(json.dumps(tweet_data, ensure_ascii=False) + "\n")
-        except Exception as e:
-            self.logger.error(f"❌ Erreur sauvegarde locale: {e}")
+            os.makedirs("data", exist_ok=True)
+            with open("data/tweets_collected.jsonl", "a", encoding="utf-8") as handle:
+                handle.write(json.dumps(tweet_data, ensure_ascii=False) + "\n")
+        except Exception as exc:
+            self.logger.error("❌ Erreur sauvegarde locale: %s", exc)
 
     async def close(self):
-        """Fermeture propre des connexions"""
+        """Fermeture propre des connexions."""
         if self.stream:
             self.stream.disconnect()
         self.logger.info("🔌 Connexions Twitter fermées")
