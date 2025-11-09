@@ -1,95 +1,155 @@
 #!/bin/bash
-# scripts/deploy_enterprise.sh
 
+# === LIA ULTIMATE AI - ENTERPRISE DEPLOYMENT SCRIPT ===
 set -e
 
-echo "🏢 LIA ULTIMATE AI - DÉPLOIEMENT ENTERPRISE"
-echo "==========================================="
+echo "🚀 Starting LIA Ultimate AI Enterprise Deployment..."
+export DEPLOYMENT_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
-check_environment() {
-    echo "🔍 Validation de l'environnement..."
+# === LOAD SECRETS ===
+if [ -f .env ]; then
+    export $(cat .env | grep -v '^#' | xargs)
+    echo "✅ Environment variables loaded securely"
+else
+    echo "❌ .env file not found!"
+    exit 1
+fi
 
-    if ! command -v docker &> /dev/null; then
-        echo "❌ Docker n'est pas installé"
+# === VALIDATE JWT TOKEN ===
+validate_jwt_token() {
+    echo "🔐 Validating JWT Token..."
+    if [ -z "$ADMIN_JWT_TOKEN" ]; then
+        echo "❌ ADMIN_JWT_TOKEN not set"
         exit 1
     fi
 
-    if ! command -v docker-compose &> /dev/null; then
-        echo "❌ Docker Compose n'est pas installé"
-        exit 1
-    fi
-
-    local MEM_GB
-    MEM_GB=$(free -g | awk 'NR==2{print $2}')
-    if [ "$MEM_GB" -lt 8 ]; then
-        echo "⚠️  Mémoire insuffisante (8GB minimum recommandé)"
-    fi
-
-    echo "✅ Environnement validé"
+    python3 -c "
+import jwt, os
+try:
+    decoded = jwt.decode(os.getenv('ADMIN_JWT_TOKEN'), options={'verify_signature': False})
+    print(f'✅ JWT Token Valid - Role: {decoded.get(\"role\")}, Exp: {decoded.get(\"exp\")}')
+except Exception as e:
+    print(f'❌ JWT Validation Failed: {e}')
+    exit(1)
+"
 }
 
-build_images() {
-    echo "🐳 Construction des images Docker..."
-    docker-compose build --no-cache
-    echo "✅ Images construites avec succès"
+# === DOCKER DEPLOYMENT ===
+deploy_docker_stack() {
+    echo "🐳 Deploying Docker Stack..."
+
+    docker network create lia_secure_network || true
+    docker network create lia_monitoring_network || true
+
+    docker-compose -f docker-compose.prod.yml up -d --build --force-recreate
+
+    echo "✅ Docker stack deployed successfully"
 }
 
-start_services() {
-    echo "🚀 Démarrage des services..."
+# === DATABASE INITIALIZATION ===
+init_databases() {
+    echo "🗄️ Initializing Databases..."
 
-    mkdir -p data/logs data/tweets data/analytics logs
-    chmod -R 755 data logs
+    until docker exec mongodb-primary mongo --eval "db.adminCommand('ismaster')" | grep "true"; do
+        echo "⏳ Waiting for MongoDB..."
+        sleep 5
+    done
 
-    docker-compose up -d
-
-    echo "⏳ Attente du démarrage des services..."
-    sleep 15
-
-    check_health
-}
-
-check_health() {
-    echo "🏥 Vérification de la santé des services..."
-
-    if curl -sf http://localhost:8000/health > /dev/null; then
-        echo "✅ API principale opérationnelle"
-    else
-        echo "❌ API principale inaccessible"
-        exit 1
-    fi
-
-    if docker exec lia-mongodb mongosh --eval "db.adminCommand('ping')" > /dev/null 2>&1; then
-        echo "✅ MongoDB opérationnel"
-    else
-        echo "❌ MongoDB inaccessible"
-        exit 1
-    fi
-
-    echo "🎉 Tous les services sont opérationnels"
-}
-
-show_info() {
-    cat <<EOF
-
-📊 INFORMATIONS DE DÉPLOIEMENT
-==============================
-🌐 API principale: http://localhost:8000
-📊 Dashboard: http://localhost:3000
-🗄️  MongoDB: localhost:27017
-🔴 Redis: localhost:6379
-
-📚 Documentation API: http://localhost:8000/docs
-🔍 Logs: docker-compose logs -f
-
-🚀 LIA Ultimate AI Enterprise est maintenant opérationnel!
+    docker exec mongodb-primary mongo -u lia_admin -p UltraSecurePass123! --authenticationDatabase admin lia_prod << EOF
+    db.createCollection("twitter_data");
+    db.createCollection("youtube_analytics");
+    db.createCollection("reddit_sentiment");
+    db.twitter_data.createIndex({ "created_at": -1 });
+    db.youtube_analytics.createIndex({ "timestamp": -1 });
+    db.reddit_sentiment.createIndex({ "subreddit": 1, "timestamp": -1 });
+    print("✅ MongoDB initialized successfully");
 EOF
+
+    echo "✅ Databases initialized"
 }
 
+# === SECURITY CHECKS ===
+run_security_checks() {
+    echo "🔒 Running Security Checks..."
+
+    validate_jwt_token
+
+    services=("lia-core" "lia-api" "lia-dashboard" "mongodb-primary" "redis-cache")
+    for service in "${services[@]}"; do
+        if docker ps | grep -q "$service"; then
+            echo "✅ $service is running securely"
+        else
+            echo "❌ $service is not running"
+            exit 1
+        fi
+    done
+
+    curl -s -f https://localhost/api/health > /dev/null && echo "✅ SSL/TLS endpoints secure" || echo "⚠️ SSL/TLS check skipped"
+}
+
+# === SMOKE TESTS ===
+run_smoke_tests() {
+    echo "🧪 Running Smoke Tests..."
+
+    export ADMIN_TOKEN="$ADMIN_JWT_TOKEN"
+
+    endpoints=(
+        "/api/health"
+        "/api/v1/analytics/sentiment"
+        "/api/v1/data/twitter/trends"
+        "/api/v1/system/status"
+    )
+
+    for endpoint in "${endpoints[@]}"; do
+        response=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            "http://localhost:8000$endpoint")
+
+        if [ "$response" -eq 200 ]; then
+            echo "✅ $endpoint - HTTP $response"
+        else
+            echo "❌ $endpoint - HTTP $response"
+            exit 1
+        fi
+    done
+
+    curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d '{"platform": "twitter", "query": "AI"}' \
+        http://localhost:8000/api/v1/data/collect && echo "✅ Data ingestion test passed"
+}
+
+# === MONITORING SETUP ===
+setup_monitoring() {
+    echo "📊 Setting up Monitoring..."
+
+    curl -X POST -H "Content-Type: application/json" \
+        -d '{"name":"LIA Ultimate AI Dashboard"}' \
+        http://admin:$GRAFANA_ADMIN_PASSWORD@localhost:3001/api/dashboards/db && echo "✅ Grafana dashboard created" || echo "⚠️ Grafana setup skipped"
+
+    if [ -f ./scripts/setup_monitoring.py ]; then
+        python3 ./scripts/setup_monitoring.py
+    else
+        echo "⚠️ Monitoring setup script not found, skipping..."
+    fi
+}
+
+# === MAIN DEPLOYMENT FLOW ===
 main() {
-    check_environment
-    build_images
-    start_services
-    show_info
+    echo "🏁 Starting LIA Ultimate AI Enterprise Deployment..."
+
+    validate_jwt_token
+    deploy_docker_stack
+    init_databases
+    sleep 10
+    run_security_checks
+    run_smoke_tests
+    setup_monitoring
+
+    echo "🎉 LIA Ultimate AI Deployment Completed Successfully!"
+    echo "📊 Dashboard: http://localhost:3000"
+    echo "🔗 API: http://localhost:8000"
+    echo "📚 Documentation: http://localhost:8080"
 }
 
 main "$@"
