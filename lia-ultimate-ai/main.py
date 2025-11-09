@@ -3,18 +3,22 @@
 LIA Ultimate AI Enterprise - Point d'entrée principal.
 """
 
+import asyncio
 import logging
 import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import List
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from core.twitter_connector import TwitterAPIConnector
-from storage.mongodb_manager import MongoDBManager
+from core.youtube_connector import YouTubeConfig, YouTubeConnector
+from core.reddit_connector import RedditConfig, RedditConnector
+from storage.mongodb_manager import init_mongo_manager
 from web.api_routes import router as api_router
 from config.security import security  # noqa: F401  # Force initialisation sécurité
 
@@ -31,6 +35,7 @@ class CorrelationIdFilter(logging.Filter):
 class LIAEnterpriseOrchestrator:
     def __init__(self):
         self.components = {}
+        self.background_tasks: List[asyncio.Task] = []
         self._ensure_directories()
         self._setup_logging()
         self.app = self._create_fastapi_app()
@@ -89,17 +94,57 @@ class LIAEnterpriseOrchestrator:
         self.logger.info("🚀 Initialisation LIA Enterprise Edition...")
         try:
             mongo_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017/lia_ai")
-            self.components["database"] = MongoDBManager(connection_string=mongo_uri)
+            db_manager = init_mongo_manager(mongo_uri)
+            self.components["database"] = db_manager
 
-            self.components["twitter"] = TwitterAPIConnector.from_env()
-
-            db_healthy = await self.components["database"].is_healthy()
-            twitter_ok = await self.components["twitter"].initialize()
-
+            db_healthy = await db_manager.is_healthy()
             if not db_healthy:
                 raise RuntimeError("Base de données MongoDB indisponible")
-            if not twitter_ok:
-                self.logger.warning("Twitter API non initialisée complètement")
+
+            # Twitter connector (optionnel suivant variables env)
+            try:
+                twitter_connector = TwitterAPIConnector.from_env()
+                self.components["twitter"] = twitter_connector
+                twitter_ok = await twitter_connector.initialize()
+                if not twitter_ok:
+                    self.logger.warning("Twitter API non initialisée complètement")
+            except EnvironmentError as exc:
+                self.logger.warning("Twitter désactivé (configuration incomplète): %s", exc)
+            except Exception as exc:
+                self.logger.error("❌ Erreur initialisation Twitter: %s", exc)
+
+            # YouTube connector
+            youtube_key = os.getenv("YOUTUBE_API_KEY")
+            if youtube_key:
+                youtube_connector = YouTubeConnector(YouTubeConfig(api_key=youtube_key))
+                youtube_ok = await youtube_connector.initialize()
+                if youtube_ok:
+                    self.components["youtube"] = youtube_connector
+                    task = asyncio.create_task(youtube_connector.start_monitoring())
+                    self.background_tasks.append(task)
+                else:
+                    self.logger.warning("Connecteur YouTube non opérationnel")
+            else:
+                self.logger.warning("YOUTUBE_API_KEY non défini; connecteur YouTube désactivé")
+
+            # Reddit connector
+            reddit_id = os.getenv("REDDIT_CLIENT_ID")
+            reddit_secret = os.getenv("REDDIT_CLIENT_SECRET")
+            if reddit_id and reddit_secret:
+                reddit_connector = RedditConnector(
+                    RedditConfig(client_id=reddit_id, client_secret=reddit_secret)
+                )
+                reddit_ok = await reddit_connector.initialize()
+                if reddit_ok:
+                    self.components["reddit"] = reddit_connector
+                    task = asyncio.create_task(reddit_connector.start_monitoring())
+                    self.background_tasks.append(task)
+                else:
+                    self.logger.warning("Connecteur Reddit non opérationnel")
+            else:
+                self.logger.warning(
+                    "Variables REDDIT_CLIENT_ID/REDDIT_CLIENT_SECRET absentes; connecteur Reddit désactivé"
+                )
 
             self.logger.info("✅ LIA Enterprise initialisé avec succès")
         except Exception as exc:
@@ -109,6 +154,12 @@ class LIAEnterpriseOrchestrator:
     async def shutdown_components(self):
         """Arrêt propre des composants."""
         self.logger.info("🛑 Arrêt de LIA Enterprise...")
+        for task in self.background_tasks:
+            task.cancel()
+        if self.background_tasks:
+            await asyncio.gather(*self.background_tasks, return_exceptions=True)
+            self.background_tasks.clear()
+
         for component in self.components.values():
             if hasattr(component, "close"):
                 await component.close()

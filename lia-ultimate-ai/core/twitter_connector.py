@@ -8,6 +8,8 @@ from typing import Dict, Optional
 
 import tweepy
 
+from storage.mongodb_manager import init_mongo_manager
+
 
 @dataclass
 class TwitterConfig:
@@ -159,6 +161,11 @@ class TwitterAPIConnector:
             self.logger.info("📥 Tweet #%s reçu", self.tweets_collected)
 
             await self._save_tweet_local(processed_tweet)
+            try:
+                mongo_manager = init_mongo_manager()
+                await mongo_manager.store_tweet(processed_tweet)
+            except Exception as exc:
+                self.logger.error("❌ Erreur stockage MongoDB tweet: %s", exc)
 
         except Exception as exc:
             self.logger.error("❌ Erreur traitement tweet: %s", exc)
