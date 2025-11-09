@@ -2,7 +2,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import googleapiclient.discovery
 
@@ -106,3 +106,21 @@ class YouTubeConnector:
     async def close(self):
         """Fermeture propre (placeholder)."""
         self.logger.info("🔌 Connecteur YouTube arrêté")
+
+    async def get_popular_videos(
+        self, categories: Optional[List[str]] = None, limit: int = 5
+    ) -> List[Dict]:
+        """Retourne les vidéos populaires sous forme simplifiée."""
+        videos = await self.fetch_trending_videos()
+        simplified: List[Dict] = []
+        for item in videos[:limit]:
+            simplified.append(
+                {
+                    "id": item.get("video_id"),
+                    "title": item.get("title"),
+                    "channel_title": item.get("channel_title"),
+                    "published_at": item.get("published_at"),
+                    "view_count": item.get("statistics", {}).get("viewCount", 0),
+                }
+            )
+        return simplified

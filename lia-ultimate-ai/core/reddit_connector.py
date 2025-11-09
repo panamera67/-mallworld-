@@ -2,7 +2,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import asyncpraw
 
@@ -41,7 +41,9 @@ class RedditConnector:
             self.logger.error("❌ Erreur connexion Reddit: %s", exc)
             return False
 
-    async def fetch_trending_posts(self, subreddits: Optional[List[str]] = None) -> List[Dict]:
+    async def fetch_trending_posts(
+        self, subreddits: Optional[List[str]] = None, limit_per_sub: int = 20
+    ) -> List[Dict]:
         """Récupération des posts tendances."""
         subreddits = subreddits or self.config.subreddits or [
             "artificial",
@@ -52,18 +54,19 @@ class RedditConnector:
 
         collected: List[Dict] = []
         try:
-            for subreddit_name in subreddits:
-                try:
-                    subreddit = await self.reddit.subreddit(subreddit_name)
-                    async for post in subreddit.hot(limit=20):
-                        post_data = await self._process_post_data(post)
-                        collected.append(post_data)
-                        self.posts_collected += 1
-                except Exception as exc:
-                    self.logger.error(
-                        "❌ Erreur récupération subreddit %s: %s", subreddit_name, exc
-                    )
-                    continue
+            async with self.reddit:
+                for subreddit_name in subreddits:
+                    try:
+                        subreddit = await self.reddit.subreddit(subreddit_name)
+                        async for post in subreddit.hot(limit=limit_per_sub):
+                            post_data = await self._process_post_data(post)
+                            collected.append(post_data)
+                            self.posts_collected += 1
+                    except Exception as exc:
+                        self.logger.error(
+                            "❌ Erreur récupération subreddit %s: %s", subreddit_name, exc
+                        )
+                        continue
 
             self.logger.info("📝 %s posts Reddit collectés", len(collected))
             return collected
@@ -111,3 +114,9 @@ class RedditConnector:
         """Fermeture propre du connecteur."""
         await self.reddit.close()
         self.logger.info("🔌 Connecteur Reddit arrêté")
+
+    async def get_hot_posts(
+        self, subreddits: List[str], limit_per_sub: int = 3
+    ) -> List[Dict]:
+        """Retourne les posts populaires simplifiés."""
+        return await self.fetch_trending_posts(subreddits=subreddits, limit_per_sub=limit_per_sub)

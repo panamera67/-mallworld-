@@ -8,7 +8,10 @@ export DEPLOYMENT_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 # === LOAD SECRETS ===
 if [ -f .env ]; then
-    export $(cat .env | grep -v '^#' | xargs)
+    set -a
+    # shellcheck disable=SC1091
+    . ./.env
+    set +a
     echo "✅ Environment variables loaded securely"
 else
     echo "❌ .env file not found!"
@@ -41,7 +44,7 @@ deploy_docker_stack() {
     docker network create lia_secure_network || true
     docker network create lia_monitoring_network || true
 
-    docker-compose -f docker-compose.prod.yml up -d --build --force-recreate
+    docker-compose -f docker-compose.enterprise.yml up -d --build --force-recreate
 
     echo "✅ Docker stack deployed successfully"
 }
@@ -50,12 +53,11 @@ deploy_docker_stack() {
 init_databases() {
     echo "🗄️ Initializing Databases..."
 
-    until docker exec mongodb-primary mongo --eval "db.adminCommand('ismaster')" | grep "true"; do
+    until docker exec lia-mongodb mongo --eval "db.adminCommand('ismaster')" | grep "true"; do
         echo "⏳ Waiting for MongoDB..."
         sleep 5
     done
-
-    docker exec mongodb-primary mongo -u lia_admin -p UltraSecurePass123! --authenticationDatabase admin lia_prod << EOF
+    docker exec lia-mongodb mongo -u lia_admin -p UltraSecurePass123! --authenticationDatabase admin lia_prod << EOF
     db.createCollection("twitter_data");
     db.createCollection("youtube_analytics");
     db.createCollection("reddit_sentiment");
@@ -74,7 +76,7 @@ run_security_checks() {
 
     validate_jwt_token
 
-    services=("lia-core" "lia-api" "lia-dashboard" "mongodb-primary" "redis-cache")
+    services=("lia-core-enterprise" "lia-dashboard" "lia-mongodb" "lia-redis" "lia-prometheus" "lia-grafana")
     for service in "${services[@]}"; do
         if docker ps | grep -q "$service"; then
             echo "✅ $service is running securely"
@@ -84,7 +86,7 @@ run_security_checks() {
         fi
     done
 
-    curl -s -f https://localhost/api/health > /dev/null && echo "✅ SSL/TLS endpoints secure" || echo "⚠️ SSL/TLS check skipped"
+    curl -s -f http://localhost:8000/health > /dev/null && echo "✅ API reachable" || echo "⚠️ API health check skipped"
 }
 
 # === SMOKE TESTS ===

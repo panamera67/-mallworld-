@@ -15,11 +15,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
+from core.digital_being import LIAAsDigitalBeing
 from core.twitter_connector import TwitterAPIConnector
 from core.youtube_connector import YouTubeConfig, YouTubeConnector
 from core.reddit_connector import RedditConfig, RedditConnector
 from storage.mongodb_manager import init_mongo_manager
-from web.api_routes import router as api_router
+from web.api_routes import router as api_router, set_digital_being
 from config.security import security  # noqa: F401  # Force initialisation sécurité
 
 
@@ -82,11 +83,7 @@ class LIAEnterpriseOrchestrator:
             allow_headers=["*"],
         )
 
-        @app.get("/health")
-        async def root_health():
-            return {"status": "healthy", "version": "1.0.0"}
-
-        app.include_router(api_router, prefix="/api/v1")
+        app.include_router(api_router)
         return app
 
     async def initialize_components(self):
@@ -146,6 +143,30 @@ class LIAEnterpriseOrchestrator:
                     "Variables REDDIT_CLIENT_ID/REDDIT_CLIENT_SECRET absentes; connecteur Reddit désactivé"
                 )
 
+            # Digital being
+            digital_config = {
+                "cognitive_interval": int(os.getenv("COGNITIVE_INTERVAL", "15")),
+                "importance_threshold": float(
+                    os.getenv("IMPORTANCE_THRESHOLD", "0.3")
+                ),
+                "max_memories": int(os.getenv("MAX_MEMORIES", "10000")),
+                "consciousness_growth_rate": float(
+                    os.getenv("CONSCIOUSNESS_GROWTH_RATE", "0.01")
+                ),
+                "youtube_api_key": os.getenv("YOUTUBE_API_KEY"),
+                "reddit_client_id": reddit_id,
+                "reddit_client_secret": reddit_secret,
+            }
+            subreddit_env = os.getenv("REDDIT_SUBREDDITS")
+            if subreddit_env:
+                digital_config["reddit_subreddits"] = [
+                    sub.strip() for sub in subreddit_env.split(",") if sub.strip()
+                ]
+            digital_being = LIAAsDigitalBeing(digital_config)
+            set_digital_being(digital_being)
+            self.components["digital_being"] = digital_being
+            self.background_tasks.append(asyncio.create_task(digital_being.live()))
+
             self.logger.info("✅ LIA Enterprise initialisé avec succès")
         except Exception as exc:
             self.logger.error("❌ Erreur initialisation LIA Enterprise: %s", exc)
@@ -160,7 +181,13 @@ class LIAEnterpriseOrchestrator:
             await asyncio.gather(*self.background_tasks, return_exceptions=True)
             self.background_tasks.clear()
 
-        for component in self.components.values():
+        digital_being = self.components.get("digital_being")
+        if digital_being:
+            await digital_being.shutdown()
+
+        for name, component in self.components.items():
+            if name == "digital_being":
+                continue
             if hasattr(component, "close"):
                 await component.close()
         self.logger.info("✅ Arrêt terminé")

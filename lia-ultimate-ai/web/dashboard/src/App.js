@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 
 const API_BASE =
   import.meta.env.VITE_API_URL ??
-  process.env.REACT_APP_API_URL ??
-  'http://localhost:8000';
+  (typeof window !== 'undefined'
+    ? window.location.origin
+    : 'http://localhost:8000');
 
 function App() {
   const [metrics, setMetrics] = useState({});
